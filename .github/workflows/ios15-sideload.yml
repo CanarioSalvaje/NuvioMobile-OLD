@@ -72,6 +72,8 @@ jobs:
         run: ./scripts/prepare-ios-dependencies.sh
 
       - name: Build unsigned iOS 15 ${{ inputs.configuration || 'Release' }} IPA
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           (
             while sleep 60; do
@@ -84,13 +86,13 @@ jobs:
           ) &
           monitor_pid=$!
           trap 'kill "${monitor_pid}" 2>/dev/null || true' EXIT
-          set -o pipefail
-          ./scripts/build-ios-ipa.sh 2>&1 | tee build.log || {
-            grep -E -A2 "(error:|e: |\*\* BUILD FAILED|What went wrong|FAILURE:|Undefined symbol|ld: )" build.log \
-              | grep -v -E "^(warning|--$)" | awk '!seen[$0]++' | head -40 > errors.txt || true
-            head -c 60000 errors.txt > errors_short.txt
-            while IFS= read -r line; do echo "::error::${line:0:900}"; done < <(head -9 errors_short.txt)
-            { echo '## Errors'; echo '```'; cat errors_short.txt; echo '```'; } >> "${GITHUB_STEP_SUMMARY}"
+          ./scripts/build-ios-ipa.sh > build.log 2>&1 || {
+            grep -n -E "(^|[[:space:]])error:|^e: |BUILD FAILED|What went wrong|Undefined symbols|^ld: |fatal error" build.log | head -200 > errors.txt || true
+            tail -300 build.log > tail.txt
+            mkdir -p /tmp/ci && cp errors.txt tail.txt /tmp/ci/
+            cd /tmp/ci && git init -q && git checkout -q -b ci-logs
+            git -c user.name=ci -c user.email=ci@local add -A && git -c user.name=ci -c user.email=ci@local commit -qm "logs ${GITHUB_RUN_NUMBER}"
+            git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ci-logs
             exit 1
           }
 
