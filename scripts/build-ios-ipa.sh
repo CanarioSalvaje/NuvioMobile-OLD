@@ -103,6 +103,13 @@ package_root="$(mktemp -d "${TMPDIR:-/tmp}/nuvio-ios-ipa.XXXXXX")"
 trap 'rm -rf "${package_root}"' EXIT
 mkdir -p "${package_root}/Payload"
 ditto "${app_path}" "${package_root}/Payload/Nuvio.app"
+if [[ "${NUVIO_STRIP_PLUGINS:-0}" == "1" ]]; then
+    # iOS 15 sideload build: the Live Activity widget requires iOS 16.1 and
+    # costs an extra App ID on free Apple accounts.
+    rm -rf "${package_root}/Payload/Nuvio.app/PlugIns"
+fi
+minimum_os="$(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "${package_root}/Payload/Nuvio.app/Info.plist")"
+echo "MinimumOSVersion: ${minimum_os}"
 
 ipa_path="${output_directory}/nuvio-${version}-full-${configuration_slug}.ipa"
 temporary_ipa="${package_root}/nuvio-${version}-full-${configuration_slug}.ipa"

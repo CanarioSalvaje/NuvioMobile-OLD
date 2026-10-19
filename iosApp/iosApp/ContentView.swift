@@ -1390,7 +1390,7 @@ struct ContentView: View {
                     .allowsHitTesting(systemUI.pictureInPictureMessage == nil)
             }
         }
-        .persistentSystemOverlays(systemUI.isPlayerImmersive ? .hidden : .automatic)
+        .modifier(PersistentSystemOverlaysCompat(hidden: systemUI.isPlayerImmersive))
         .statusBarHidden(systemUI.isPlayerImmersive)
         .overlay {
             if let message = systemUI.pictureInPictureMessage {
@@ -1421,6 +1421,18 @@ struct ContentView: View {
                     NotificationCenter.default.post(name: playerSceneDidActivateNotification, object: nil)
                 }
             }
+        }
+    }
+}
+
+private struct PersistentSystemOverlaysCompat: ViewModifier {
+    let hidden: Bool
+
+    func body(content: Content) -> some View {
+        if #available(iOS 16.0, *) {
+            content.persistentSystemOverlays(hidden ? .hidden : .automatic)
+        } else {
+            content
         }
     }
 }
