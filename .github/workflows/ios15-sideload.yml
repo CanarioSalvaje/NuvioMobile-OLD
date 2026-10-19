@@ -15,7 +15,7 @@ on:
         default: Release
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ios15-build-${{ github.ref }}
@@ -84,7 +84,15 @@ jobs:
           ) &
           monitor_pid=$!
           trap 'kill "${monitor_pid}" 2>/dev/null || true' EXIT
-          ./scripts/build-ios-ipa.sh
+          set -o pipefail
+          ./scripts/build-ios-ipa.sh 2>&1 | tee build.log || {
+            grep -E -A2 "(error:|e: |\*\* BUILD FAILED|What went wrong|FAILURE:|Undefined symbol|ld: )" build.log \
+              | grep -v -E "^(warning|--$)" | awk '!seen[$0]++' | head -40 > errors.txt || true
+            head -c 60000 errors.txt > errors_short.txt
+            while IFS= read -r line; do echo "::error::${line:0:900}"; done < <(head -9 errors_short.txt)
+            { echo '## Errors'; echo '```'; cat errors_short.txt; echo '```'; } >> "${GITHUB_STEP_SUMMARY}"
+            exit 1
+          }
 
       - name: Summarize IPA
         run: |
@@ -113,3 +121,12 @@ jobs:
           path: build/ios-ipa/*.ipa
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish IPA as release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ipa_path="$(find build/ios-ipa -maxdepth 1 -type f -name '*.ipa' -print -quit)"
+          cp "${ipa_path}" Nuvio-iOS15.ipa
+          tag="ios15-${GITHUB_RUN_NUMBER}"
+          gh release create "${tag}" Nuvio-iOS15.ipa --repo "${GITHUB_REPOSITORY}" --target "${GITHUB_SHA}" --title "Nuvio iOS 15 (${tag})" --notes "Unsigned IPA for iOS 15 sideloading." --prerelease
