@@ -1,0 +1,4 @@
+1300:error: A problem was found with the configuration of task ':composeApp:generateRuntimeConfigs' (type 'Build_gradle.GenerateRuntimeConfigsTask').
+1307:* What went wrong:
+1322:BUILD FAILED in 3m 39s
+1547:** BUILD FAILED **
